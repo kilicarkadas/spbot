@@ -70,3 +70,27 @@ exports.addNewSite = (siteTitle, siteDescription,accessToken) => {
 
     return p;
 }
+
+exports.getSiteDetails=(siteTitle,accessToken)=>{
+    var p = new Promise((resolve, reject) => {
+
+        var endpointUrl = adalConfig.resource + "/" + siteTitle + '/_api/web/RoleAssignments/Groups';
+        fetch(endpointUrl, {
+            method: 'GET',
+            headers: {
+                "Authorization": "Bearer " + accessToken,
+                "Accept": "application/json;odata=verbose"
+            }
+        }).then(function (res) {
+            return res.json();
+        }).then(function (json) {
+            console.log(json);
+            resolve(json);
+        }).catch(function (err) {
+            reject(err);
+        });
+    });
+
+    return p;
+
+}

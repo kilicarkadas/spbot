@@ -318,11 +318,49 @@ function(session){
 var client = new Client();
 bot.dialog('viewPermissionsDialog', [
     getAuthorization,
-//new code
-function (session){
-    builder.Prompts.text(session, 'What is the URL of the site you want to check?');
-}
+    function (session){
+        builder.Prompts.text(session, 'What is the name of the site you want to check?');
+    }
+    ,function(session, results){
+        var siteName=results.response;
+        session.send('I will check details of ' + siteName);
+    
+        var accessToken = session.privateConversationData['accessToken'];
+          
+        spService.getSiteDetails(siteName, accessToken).then((res) => {
+    
+            if (res.error) {
+                session.endDialog("Error: %s", res.error.message.value);
+    
+            } else {
+                var cards = [];
+                var results = res.d.results;
+                    
+                if (results.length > 0) {
 
+                    // Format search results wit ha Thumbnail card
+                    _.each(results, function(value) {
+
+                        var title = value.Title;
+                        var description = value.Description || '';
+                        description = description.replace(/<c0>|<\/c0>/g,"").replace(/<ddd\/>/g,"");
+                        var elt = new builder.ThumbnailCard(session).title(title).text(_.unescape(description));
+
+                        cards.push(elt);       
+                    });
+
+                    // create reply with Carousel AttachmentLayout
+                    var reply = new builder.Message(session)
+                        .attachmentLayout(builder.AttachmentLayout.carousel)
+                        .attachments(cards);
+
+                    console.log(reply);
+                    session.send(reply);
+            }
+        }
+        });
+        
+    }
 
     ])
 

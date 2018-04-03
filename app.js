@@ -9,6 +9,7 @@ const queryString = require('query-string');
 var express = require('express');
 var bodyParser = require('body-parser');
 var Client = require('node-rest-client').Client;
+var siteConfig = require('./site-config.json');
 var spService = require('./sharepoint-service');
 
 var site = "Create Site";
@@ -33,12 +34,14 @@ var companyConfig={
 //     'resource' : 'https://affinitywaterltd.sharepoint.com', // The resource endpoint we want to give access to (in this case, SharePoint Online)
 // }
 
+//end of Groundteam
+
 var adalConfig = {
     'clientId' : '9b9c2d70-2728-4244-8e83-9e2ecb55957f', // The client Id retrieved from the Azure AD App
     'clientSecret' : '/Sf3YLWTJsgDbdJtSEOWR/aYCp9uDDVW0QJLZ/XgagI=', // The client secret retrieved from the Azure AD App
     'authorityHostUrl' : 'https://login.microsoftonline.com/', // The host URL for the Microsoft authorization server
     'tenant' : 'e825892c-c6b0-4a78-b8c2-df7888e8c689', // The tenant Id or domain name (e.g mydomain.onmicrosoft.com)
-    'redirectUri' : 'http://localhost:3978/api/oauthcallback', // This URL will be used for the Azure AD Application to send the authorization code.   
+    'redirectUri' : 'http://localhost:443/api/oauthcallback', // This URL will be used for the Azure AD Application to send the authorization code.   
     'resource' : 'https://groundteam.sharepoint.com', // The resource endpoint we want to give access to (in this case, SharePoint Online)
 }
 
@@ -60,6 +63,12 @@ var connector = new builder.ChatConnector({
 });
 
 var bot = new builder.UniversalBot(connector);
+
+// Set default locale
+bot.set('localizerSettings', {
+    botLocalePath: './locale',
+    defaultLocale: 'en'
+});
 
 // Make sure you add code to validate these fields
 var luisAppId = process.env.LUIS_APP_ID;
@@ -84,7 +93,7 @@ var intents = new builder.IntentDialog({ recognizers: [recognizer] })
 //=========================================================
 // Server Setup (Restify)
 //=========================================================
-var port = process.env.port || process.env.PORT || 3978; // The port number is automatically assigned by Azure if hosted via the Web Application
+var port = process.env.port || process.env.PORT || 443; // The port number is automatically assigned by Azure if hosted via the Web Application
 var server = restify.createServer();
 //server.use(restify.bodyParser()); // To be able to get the authorization code (req.params.code)
 server.use(restify.plugins.bodyParser({mapParams:true})); // To be able to get the authorization code (req.params.code)
@@ -116,7 +125,7 @@ if(authorizationCode) {
             // - Reconnect with the bot to continue dialog
             // - Avoid CRSF attacks
             var state = req.params.state;
-            console.log(state);
+            
             if (state) {
                 
                 var address = JSON.parse(state);
@@ -238,6 +247,7 @@ bot.dialog('/oauth-success', function (session, response) {
             session.privateConversationData['refreshToken'] = response.refreshToken;
         }
         session.send('Hi %s. What can I do for you today?', response.userName);
+        session.send('accessToken:' + response.accessToken);
         // Get back to the main dialog route
         session.beginDialog("/");
     }
@@ -288,26 +298,87 @@ bot.dialog('createSiteDialog', [
     getAuthorization,
 
 function(session){
-    builder.Prompts.text(session,'What will be the site name?')
-}
+    builder.Prompts.text(session,"ask_site_name")
+},function(session, results){  
+    session.userData.newSiteName = results.response;
+   
+    builder.Prompts.choice(session, "ask_site_department", "Finance|HR|IT", { listStyle: 3 });
 
-,function(session, results){
+    // spService.getSiteCollections(accessToken).then((res) => {
+    //     var cards = [];
+    //     if (res.error) {
+    //         session.endDialog("Error: %s", res.error.message.value);
 
-    session.userData.siteName = results.response;
-    var newSiteName=session.userData.siteName;
+    //     } else {
+            
+    //         var results = res.d.query.PrimaryQueryResult.RelevantResults.Table.Rows.results;
+            
+    //         if (results.length > 0) {
+
+    //             _.each(results, function(value) {
+    //                 var card={  "title" : _.find(value.Cells.results, function(o) { return o.Key === "Title"; }).Value,
+    //                             "link" :  _.find(value.Cells.results, function(o) { return o.Key === "Path"; }).Value}
+    //                 cards.push(card);       
+    //             });
+    //         }
+            
+    //         var departments = JSON.stringify(cards);
+    //         builder.Prompts.choice(session, "ask_site_department", departments);        
+    //     }
+    // });
+},
+function(session,results){
+    session.userData.newSiteDepartment= results.response.entity;
+    builder.Prompts.text(session,"ask_site_description");
+},
+function(session,results){
+    session.userData.newSiteDescription= results.response;
+    var newSiteName=session.userData.newSiteName;
+    var newSiteDesc=session.userData.newSiteDescription;
+    session.send('New sitename:' + newSiteName + ' Department:' + session.userData.newSiteDepartment + ' Desc: ' +newSiteDesc);
+    
     session.send('I will create a site called: ' + newSiteName);
 
     var accessToken = session.privateConversationData['accessToken'];
       
-    spService.addNewSite(newSiteName, '',accessToken).then((res) => {
+    spService.addNewSite(newSiteName, newSiteDesc,accessToken).then((res) => {
 
         if (res.error) {
             session.endDialog("Error: %s", res.error.message.value);
 
         } else {
             session.endDialog('Site ' + newSiteName +' has been created. Please navigate to '+ res.d.Url);
+            var siteUrl=res.d.Url;
+            //Add site user groups specified in site-config.json file.
+            for (var i = 0; i < siteConfig.groups.length; i++) {
+
+                var groupName= session.userData.newSiteName + siteConfig.groups[i].groupName;
+                var groupDesc= siteConfig.groups[i].groupDescription;
+                var groupRoleId = siteConfig.groups[i].roleId;
+
+                spService.createSiteGroups(accessToken,siteUrl,groupName,groupDesc,groupRoleId).then((res) => {
+
+                    if (res.error) {
+                        session.endDialog("Error: %s", res.error.message.value);
+
+                    } else {
+                        var groupId = res.d.Id;
+                        var roleId=res.roleId;
+                        spService.assignRoleToSiteGroup(accessToken,groupId,roleId).then((res) => {
+
+                            if (res.error) {
+                                session.endDialog("Error: %s", res.error.message.value);
+                            } else {
+                                session.send(groupName + ' group has been created.');
+                            }
+                        });
+                    }
+                });
+            }
+            //Added all site user groups.
         }
     });
+
     
 }
 ])
@@ -354,7 +425,7 @@ bot.dialog('viewPermissionsDialog', [
                         .attachmentLayout(builder.AttachmentLayout.carousel)
                         .attachments(cards);
 
-                    console.log(reply);
+                    //console.log(reply);
                     session.send(reply);
             }
         }
@@ -423,7 +494,7 @@ function (session){
                                 .attachmentLayout(builder.AttachmentLayout.carousel)
                                 .attachments(cards);
 
-                            console.log(reply);
+                            //console.log(reply);
                             session.send(reply);
                             
                         } else {

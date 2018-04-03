@@ -1,0 +1,20 @@
+{
+    "groups":[
+        {
+            "groupName":" Owners",
+            "groupDescription": "Full access",
+            "roleId": 1073741829
+        },
+        {
+            "groupName":" Members",
+            "groupDescription": "View & Edit",
+            "roleId": 1073741830
+        },
+        {
+            "groupName":" Visitors",
+            "groupDescription": "View",
+            "roleId": 1073741826
+        }
+
+    ]
+}

@@ -298,57 +298,43 @@ bot.dialog('createSiteDialog', [
     getAuthorization,
 
 function(session){
-    builder.Prompts.text(session,"ask_site_name")
+    var departmentChoices='';
+    for (var i = 0; i < siteConfig.departments.length; i++) {
+        if(i==siteConfig.departments.length-1){
+            departmentChoices +=siteConfig.departments[i].name;
+        }
+        else{
+            departmentChoices +=siteConfig.departments[i].name +'|';
+        }
+    }
+    builder.Prompts.choice(session, "ask_site_department", departmentChoices, { listStyle: 3 });
 },function(session, results){  
-    session.userData.newSiteName = results.response;
-   
-    builder.Prompts.choice(session, "ask_site_department", "Finance|HR|IT", { listStyle: 3 });
-
-    // spService.getSiteCollections(accessToken).then((res) => {
-    //     var cards = [];
-    //     if (res.error) {
-    //         session.endDialog("Error: %s", res.error.message.value);
-
-    //     } else {
-            
-    //         var results = res.d.query.PrimaryQueryResult.RelevantResults.Table.Rows.results;
-            
-    //         if (results.length > 0) {
-
-    //             _.each(results, function(value) {
-    //                 var card={  "title" : _.find(value.Cells.results, function(o) { return o.Key === "Title"; }).Value,
-    //                             "link" :  _.find(value.Cells.results, function(o) { return o.Key === "Path"; }).Value}
-    //                 cards.push(card);       
-    //             });
-    //         }
-            
-    //         var departments = JSON.stringify(cards);
-    //         builder.Prompts.choice(session, "ask_site_department", departments);        
-    //     }
-    // });
+    session.userData.newSiteDepartment= siteConfig.departments[results.response.index].url;
+    builder.Prompts.text(session,"ask_site_name");
 },
 function(session,results){
-    session.userData.newSiteDepartment= results.response.entity;
+    session.userData.newSiteName = results.response;
     builder.Prompts.text(session,"ask_site_description");
 },
 function(session,results){
     session.userData.newSiteDescription= results.response;
     var newSiteName=session.userData.newSiteName;
     var newSiteDesc=session.userData.newSiteDescription;
-    session.send('New sitename:' + newSiteName + ' Department:' + session.userData.newSiteDepartment + ' Desc: ' +newSiteDesc);
+    var newSiteCollectionUrl=session.userData.newSiteDepartment;
     
-    session.send('I will create a site called: ' + newSiteName);
-
+    session.send('Please wait while I create a site called: ' + newSiteName);
+    session.sendTyping();
     var accessToken = session.privateConversationData['accessToken'];
       
-    spService.addNewSite(newSiteName, newSiteDesc,accessToken).then((res) => {
+    spService.addNewSite(newSiteCollectionUrl,newSiteName, newSiteDesc,accessToken).then((res) => {
 
         if (res.error) {
             session.endDialog("Error: %s", res.error.message.value);
 
         } else {
-            session.endDialog('Site ' + newSiteName +' has been created. Please navigate to '+ res.d.Url);
+            
             var siteUrl=res.d.Url;
+
             //Add site user groups specified in site-config.json file.
             for (var i = 0; i < siteConfig.groups.length; i++) {
 
@@ -359,23 +345,23 @@ function(session,results){
                 spService.createSiteGroups(accessToken,siteUrl,groupName,groupDesc,groupRoleId).then((res) => {
 
                     if (res.error) {
-                        session.endDialog("Error: %s", res.error.message.value);
-
+                        //TODO: Add error logging
+                        //var errorMessage=res.error.message.value;
                     } else {
                         var groupId = res.d.Id;
                         var roleId=res.roleId;
-                        spService.assignRoleToSiteGroup(accessToken,groupId,roleId).then((res) => {
+                        spService.assignRoleToSiteGroup(accessToken,siteUrl,groupId,roleId).then((res) => {
 
                             if (res.error) {
-                                session.endDialog("Error: %s", res.error.message.value);
-                            } else {
-                                session.send(groupName + ' group has been created.');
+                                //TODO: Add error logging
+                                //var errorMessage=res.error.message.value;
                             }
                         });
                     }
                 });
             }
             //Added all site user groups.
+            session.endDialog('Site ' + newSiteName +' has been created. Please navigate to '+ siteUrl);
         }
     });
 
@@ -390,19 +376,18 @@ var client = new Client();
 bot.dialog('viewPermissionsDialog', [
     getAuthorization,
     function (session){
-        builder.Prompts.text(session, 'What is the name of the site you want to check?');
+        builder.Prompts.text(session, 'What is the url of the site you want to check?');
     }
     ,function(session, results){
-        var siteName=results.response;
-        session.send('I will check details of ' + siteName);
+        var siteUrl=results.response;
+        session.send('Please wait while I will check site permissions of ' + siteUrl);
     
         var accessToken = session.privateConversationData['accessToken'];
           
-        spService.getSiteDetails(siteName, accessToken).then((res) => {
-    
+        spService.getSiteDetails(siteUrl, accessToken).then((res) => {
+            console.log(JSON.stringify(res));
             if (res.error) {
                 session.endDialog("Error: %s", res.error.message.value);
-    
             } else {
                 var cards = [];
                 var results = res.d.results;
@@ -434,11 +419,6 @@ bot.dialog('viewPermissionsDialog', [
     }
 
     ])
-
-
-
-
-
 //=========================================================================================================================
 
 //=========================================================================================================================

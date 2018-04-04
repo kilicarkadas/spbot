@@ -43,11 +43,11 @@ exports.createSiteGroups = (accessToken,siteUrl,groupName,groupDesc,groupRoleId)
     return p;
 }
 
-exports.assignRoleToSiteGroup = (accessToken,groupId,roleId) => {
+exports.assignRoleToSiteGroup = (accessToken,siteUrl,groupId,roleId) => {
 
     var p = new Promise((resolve, reject) => {
 
-        var endpointUrl = adalConfig.resource + "/_api/web/roleassignments/addroleassignment(principalid="+ groupId +", roledefid="+ roleId +")";
+        var endpointUrl = siteUrl + "/_api/web/roleassignments/addroleassignment(principalid="+ groupId +", roledefid="+ roleId +")";
         
         fetch(endpointUrl,{
             method: "POST",
@@ -122,11 +122,11 @@ exports.getSiteCollections=(accessToken)=>{
                         
 }
 
-exports.addNewSite = (siteTitle, siteDescription,accessToken) => {
+exports.addNewSite = (siteCollectionUrl,siteTitle, siteDescription,accessToken) => {
 
     var p = new Promise((resolve, reject) => {
         var siteUrl = siteTitle.replace(/\s/g, "");
-        var endpointUrl = adalConfig.resource + "/_api/web/webs/add";
+        var endpointUrl = siteCollectionUrl + "/_api/web/webs/add";
 
         fetch(endpointUrl, {
             method: 'POST',
@@ -137,7 +137,7 @@ exports.addNewSite = (siteTitle, siteDescription,accessToken) => {
                     'Title': siteTitle,
                     'Description': siteDescription,
                     'WebTemplate': 'STS',
-                    'UseSamePermissionsAsParentSite': true
+                    'UseSamePermissionsAsParentSite': false
                 }
             }),
             headers: {
@@ -158,10 +158,10 @@ exports.addNewSite = (siteTitle, siteDescription,accessToken) => {
     return p;
 }
 
-exports.getSiteDetails=(siteTitle,accessToken)=>{
+exports.getSiteDetails=(siteUrl,accessToken)=>{
     var p = new Promise((resolve, reject) => {
 
-        var endpointUrl = adalConfig.resource + "/" + siteTitle + '/_api/web/RoleAssignments/Groups';
+        var endpointUrl = siteUrl + '/_api/web/RoleAssignments/Groups';
         fetch(endpointUrl, {
             method: 'GET',
             headers: {
@@ -171,7 +171,6 @@ exports.getSiteDetails=(siteTitle,accessToken)=>{
         }).then(function (res) {
             return res.json();
         }).then(function (json) {
-            //console.log(json);
             resolve(json);
         }).catch(function (err) {
             reject(err);

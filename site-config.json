@@ -16,5 +16,19 @@
             "roleId": 1073741826
         }
 
+    ],
+    "departments":[
+        {
+            "name":"Finance",
+            "url":"https://groundteam.sharepoint.com/sites/Finance"
+        },
+        {
+            "name":"HR",
+            "url":"https://groundteam.sharepoint.com/sites/Hr"
+        },
+        {
+            "name":"IT",
+            "url":"https://groundteam.sharepoint.com/sites/IT"
+        }
     ]
 }
